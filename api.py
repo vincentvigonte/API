@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from flask import request
 from http import HTTPStatus
 
 app = Flask(__name__)
@@ -88,8 +89,27 @@ def create_books():
     return jsonify({"success": True, "data": new_book}), HTTPStatus.CREATED
 
 @app.route("/api/books/<int:book_id>", methods=["PUT"])
-def update_book(book_id): 
-    pass 
+def update_book(book_id):
+    book = find_book(book_id)
+    if book is None:
+        return (
+            jsonify({"success": False, "error": "Book not found"}),
+            HTTPStatus.NOT_FOUND,
+        )
+    
+    if not request.is_json:
+        return (
+            jsonify({"success": False, "error": "Content-type must be application/json"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    data = request.get_json()
+    updatable_fields = ["title", "author", "year"]
+    for field in updatable_fields:
+        if field in data:
+            book[field] = data[field]
+
+    return jsonify({"success": True, "data": book}), HTTPStatus.OK
 
 @app.route("/api/books/<int:book_id>", methods=["DELETE"])
 def delete_book(book_id): 
