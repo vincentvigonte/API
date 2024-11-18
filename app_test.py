@@ -12,8 +12,8 @@ def client():
         with app.app_context():
             db.create_all() 
             db.session.add_all([
-                Book(title="The Birthday Boy!", author="Siradz Sahiddin", year=1925),
-                Book(title="Ang Guyabanong Hilaw", author="Ken Domingo Machari", year=1949)
+                Book(title="The Alchemist", author="Paulo Cohelle", year=1925),
+                Book(title="Little Woman", author="Luisa Alcot", year=1949)
             ])
             db.session.commit()
         yield client
@@ -24,7 +24,7 @@ def test_get_book(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["success"] is True
-    assert data["data"]["title"] == "Ang Guyabanong Hilaw"
+    assert data["data"]["title"] == "Little Woman"
 
     response = client.get("/api/books/999")
     assert response.status_code == 404
@@ -34,12 +34,12 @@ def test_get_book(client):
 
 
 def test_create_book(client):
-    new_book = {"title": "Tilapiang Masarap Sinawsaw sa Suka", "author": "Darwin Soriano III", "year": 2024}
+    new_book = {"title": "Art of War", "author": "Sho Tzu Yu", "year": 1602}
     response = client.post("/api/books", json=new_book)
     assert response.status_code == 201
     data = response.get_json()
     assert data["success"] is True
-    assert data["data"]["title"] == "Tilapiang Masarap Sinawsaw sa Suka"
+    assert data["data"]["title"] == "Art of War"
 
 
 def test_create_book_missing_fields(client):
@@ -60,8 +60,8 @@ def test_update_book(client):
     assert data["data"]["title"] == "Updated Title"
     assert data["data"]["year"] == 2023
 
-    # Test updating a non-existent book
-    response = client.put("/api/books/999", json=update_data)  # Non-existent book
+
+    response = client.put("/api/books/999", json=update_data) 
     assert response.status_code == 404
     data = response.get_json()
     assert data["success"] is False
@@ -77,8 +77,8 @@ def test_delete_book(client):
     assert data["message"] == "Book deleted successfully"
 
 
-    # Test deleting a non-existent book
-    response = client.delete("/api/books/999")  # Non-existent book
+
+    response = client.delete("/api/books/999") 
     assert response.status_code == 404
     data = response.get_json()
     assert data["success"] is False
