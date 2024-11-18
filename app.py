@@ -4,13 +4,11 @@ from http import HTTPStatus
 
 app = Flask(__name__)
 
-# Database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@localhost/Library'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Book Model
 class Book(db.Model):
     __tablename__ = 'books'
 
@@ -33,7 +31,6 @@ class Book(db.Model):
             "quantity": self.quantity
         }
 
-# API Endpoints
 @app.route('/api/books', methods=['GET'])
 def get_books():
     books = Book.query.all()
@@ -103,7 +100,6 @@ def delete_book(book_id):
 
     return jsonify({"success": True, "data": "Book deleted successfully."}), HTTPStatus.OK
 
-# Error Handlers
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"success": False, "error": "Resource not found"}), HTTPStatus.NOT_FOUND
