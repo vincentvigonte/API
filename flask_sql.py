@@ -4,13 +4,11 @@ from http import HTTPStatus
 
 app = Flask(__name__)
 
-# Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@localhost/library'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Books Model
 class Book(db.Model):
     __tablename__ = 'books'
     
@@ -33,7 +31,6 @@ class Book(db.Model):
             "quantity": self.quantity,
         }
 
-# Routes for Books
 @app.route("/api/books", methods=["GET"])
 def get_books():
     books = Book.query.all()
