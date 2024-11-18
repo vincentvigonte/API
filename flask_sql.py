@@ -1,185 +1,107 @@
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from http import HTTPStatus
-from datetime import datetime
 
 app = Flask(__name__)
 
-# Update the database name here
+# Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@localhost/library'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-class Student(db.Model):
-    __tablename__ = 'students'
+# Books Model
+class Book(db.Model):
+    __tablename__ = 'books'
     
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    student_number = db.Column(db.String(64), nullable=False, unique=True)
-    first_name = db.Column(db.String(64), nullable=False)
-    last_name = db.Column(db.Text, nullable=False)
-    middle_name = db.Column(db.String(64))
-    sex = db.Column(db.String(10), nullable=False) 
-    birthday = db.Column(db.Date, nullable=False)
+    book_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(255), nullable=False)
+    author = db.Column(db.String(255), nullable=False)
+    genre = db.Column(db.String(100))
+    published_year = db.Column(db.Integer)
+    isbn = db.Column(db.String(20), unique=True)
+    quantity = db.Column(db.Integer, default=1)
 
     def to_dict(self):
         return {
-            "id": self.id,
-            "student_number": self.student_number,
-            "first_name": self.first_name,
-            "last_name": self.last_name,
-            "middle_name": self.middle_name,
-            "sex": self.sex,
-            "birthday": self.birthday.strftime("%Y-%m-%d"),
+            "book_id": self.book_id,
+            "title": self.title,
+            "author": self.author,
+            "genre": self.genre,
+            "published_year": self.published_year,
+            "isbn": self.isbn,
+            "quantity": self.quantity,
         }
 
-@app.route("/api/students", methods=["GET"])
-def get_students():
-    students = Student.query.all()
-    return jsonify({"success": True, "data": [student.to_dict() for student in students]}), HTTPStatus.OK
+# Routes for Books
+@app.route("/api/books", methods=["GET"])
+def get_books():
+    books = Book.query.all()
+    return jsonify({"success": True, "data": [book.to_dict() for book in books]}), HTTPStatus.OK
 
-@app.route("/api/students/<int:student_id>", methods=["GET"])
-def get_student(student_id):
-    student = db.session.get(Student, student_id)
-    if not student:
-        return jsonify(
-            {
-                "success": False, 
-                "error": "Student not found"
-            }
-        ), HTTPStatus.NOT_FOUND
-    
-    return jsonify(
-        {
-            "success": True, 
-            "data": student.to_dict()
-        }
-    ), HTTPStatus.OK
+@app.route("/api/books/<int:book_id>", methods=["GET"])
+def get_book(book_id):
+    book = db.session.get(Book, book_id)
+    if not book:
+        return jsonify({"success": False, "error": "Book not found"}), HTTPStatus.NOT_FOUND
 
-@app.route("/api/students", methods=["POST"])
-def create_student():
+    return jsonify({"success": True, "data": book.to_dict()}), HTTPStatus.OK
+
+@app.route("/api/books", methods=["POST"])
+def create_book():
     if not request.is_json:
-        return jsonify(
-            {
-                "success": False,
-                "error": "Content-type must be application/json"
-            }
-        ), HTTPStatus.BAD_REQUEST
-    
+        return jsonify({"success": False, "error": "Content-type must be application/json"}), HTTPStatus.BAD_REQUEST
+
     data = request.get_json()
-    required_fields = ["student_number", "first_name", "last_name", "sex", "birthday"]
+    required_fields = ["title", "author", "isbn"]
 
     for field in required_fields:
         if field not in data:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": f"Missing required field: {field}",
-                }
-            ), HTTPStatus.BAD_REQUEST
+            return jsonify({"success": False, "error": f"Missing required field: {field}"}), HTTPStatus.BAD_REQUEST
 
-    birthday = datetime.strptime(data['birthday'], '%Y-%m-%d').date()
-
-    new_student = Student(
-        student_number=data['student_number'],
-        first_name=data['first_name'],
-        last_name=data['last_name'],
-        middle_name=data.get('middle_name', ''), 
-        sex=data['sex'], 
-        birthday=birthday
+    new_book = Book(
+        title=data['title'],
+        author=data['author'],
+        genre=data.get('genre'),
+        published_year=data.get('published_year'),
+        isbn=data['isbn'],
+        quantity=data.get('quantity', 1)
     )
 
-    db.session.add(new_student)
+    db.session.add(new_book)
     db.session.commit()
 
-    return jsonify(
-        {
-            "success": True,
-            "data": new_student.to_dict(),
-        }
-    ), HTTPStatus.CREATED
+    return jsonify({"success": True, "data": new_book.to_dict()}), HTTPStatus.CREATED
 
-@app.route("/api/students/<int:student_id>", methods=["PUT"])
-def update_student(student_id):
-    student = db.session.get(Student, student_id)
+@app.route("/api/books/<int:book_id>", methods=["PUT"])
+def update_book(book_id):
+    book = db.session.get(Book, book_id)
+    if not book:
+        return jsonify({"success": False, "error": "Book not found"}), HTTPStatus.NOT_FOUND
 
-    if student is None: 
-        return jsonify(
-            {
-                "success": False,
-                "error":"Student not found"
-            }
-        ), HTTPStatus.NOT_FOUND
-    
     data = request.get_json()
 
-    if not data: 
-        return jsonify(
-            {
-                "success": False,
-                "error": "No data found. Provide data to update the student."
-            }
-        ), HTTPStatus.BAD_REQUEST
-    
-    update_fields = ["student_number", "first_name", "last_name", "middle_name", "sex", "birthday"]
+    if not data:
+        return jsonify({"success": False, "error": "No data provided for update"}), HTTPStatus.BAD_REQUEST
 
-    for key in update_fields: 
-        if key in data: 
-            if key == 'birthday':
-                student.birthday = datetime.strptime(data[key], '%Y-%m-%d').date()
-            else:
-                setattr(student, key, data[key])
-    
+    for key in ["title", "author", "genre", "published_year", "isbn", "quantity"]:
+        if key in data:
+            setattr(book, key, data[key])
+
     db.session.commit()
 
-    return jsonify(
-        {
-            "success": True,
-            "data": student.to_dict()
-        }
-    ), HTTPStatus.OK
+    return jsonify({"success": True, "data": book.to_dict()}), HTTPStatus.OK
 
-@app.route("/api/students/<int:student_id>", methods=["DELETE"])
-def delete_student(student_id):
-    student = db.session.get(Student, student_id)
+@app.route("/api/books/<int:book_id>", methods=["DELETE"])
+def delete_book(book_id):
+    book = db.session.get(Book, book_id)
+    if not book:
+        return jsonify({"success": False, "error": "Book not found"}), HTTPStatus.NOT_FOUND
 
-    if student is None: 
-        return jsonify(
-            {
-                "success": False, 
-                "error": "Student not found."
-            }
-        ), HTTPStatus.NOT_FOUND
-    
-    db.session.delete(student)
+    db.session.delete(book)
     db.session.commit()
 
-    return jsonify(
-        {
-            "success": True,
-            "data": "Student deleted successfully."
-        }
-    ), HTTPStatus.OK
-
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify(
-        {
-            "success": False,
-            "error": "Resource not found"
-        }
-    ), HTTPStatus.NOT_FOUND
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify(
-        {
-            "success": False,
-            "error": "Internal Server Error"
-        }
-    ), HTTPStatus.INTERNAL_SERVER_ERROR
+    return jsonify({"success": True, "data": "Book deleted successfully"}), HTTPStatus.OK
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
