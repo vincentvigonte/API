@@ -1,95 +1,93 @@
 import pytest
-import json
 from app import app, db, Book
 
-@pytest.fixture(scope='module')
-def test_client():
-    app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@localhost/Library'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+@pytest.fixture
+def client():
+    app.config["TESTING"] = True
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     with app.test_client() as client:
         with app.app_context():
-            db.create_all()
-            yield client
-            db.session.remove()
-            db.drop_all()
+            db.create_all() 
+            db.session.add_all([
+                Book(title="The Birthday Boy!", author="Siradz Sahiddin", year=1925),
+                Book(title="Ang Guyabanong Hilaw", author="Ken Domingo Machari", year=1949)
+            ])
+            db.session.commit()
+        yield client
 
-def test_get_all_books(test_client):
-    response = test_client.get('/api/books')
+
+def test_get_book(client):
+    response = client.get("/api/books/2")
     assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data['success'] is True
-    assert isinstance(data['data'], list)
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["data"]["title"] == "Ang Guyabanong Hilaw"
 
-def test_create_book(test_client):
-    new_book = {
-        "title": "The Art of War",
-        "author": "Sun Tzu",
-        "genre": "Philosophy",
-        "published_year": 500,
-        "isbn": "1234567890123",
-        "quantity": 3
-    }
-    response = test_client.post('/api/books', json=new_book)
-    assert response.status_code == 201
-    data = json.loads(response.data)
-    assert data['success'] is True
-    assert data['data']['title'] == "The Art of War"
-
-def test_get_single_book(test_client):
-    book = Book(
-        title="Test Book",
-        author="Author Name",
-        genre="Test Genre",
-        published_year=2022,
-        isbn="1112223334445",
-        quantity=1
-    )
-    db.session.add(book)
-    db.session.commit()
-
-    response = test_client.get(f'/api/books/{book.book_id}')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data['success'] is True
-    assert data['data']['title'] == "Test Book"
-
-def test_update_book(test_client):
-    book = Book.query.first()
-    update_data = {
-        "title": "Updated Book Title",
-        "quantity": 5
-    }
-    response = test_client.put(f'/api/books/{book.book_id}', json=update_data)
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data['success'] is True
-    assert data['data']['title'] == "Updated Book Title"
-    assert data['data']['quantity'] == 5
-
-def test_delete_book(test_client):
-    book = Book.query.first()
-    response = test_client.delete(f'/api/books/{book.book_id}')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data['success'] is True
-    assert data['data'] == "Book deleted successfully."
-
-    response = test_client.get(f'/api/books/{book.book_id}')
+    response = client.get("/api/books/999")
     assert response.status_code == 404
-    data = json.loads(response.data)
-    assert data['success'] is False
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["error"] == "Book not found"
 
-def test_create_book_missing_field(test_client):
-    new_book = {
-        "author": "Missing Title Author",
-        "genre": "Missing Title Genre",
-        "published_year": 2023,
-        "isbn": "9876543210987"
-    }
-    response = test_client.post('/api/books', json=new_book)
+
+def test_create_book(client):
+    new_book = {"title": "Tilapiang Masarap Sinawsaw sa Suka", "author": "Darwin Soriano III", "year": 2024}
+    response = client.post("/api/books", json=new_book)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["data"]["title"] == "Tilapiang Masarap Sinawsaw sa Suka"
+
+
+def test_create_book_missing_fields(client):
+    incomplete_book = {"title": "Incomplete"}
+    response = client.post("/api/books", json=incomplete_book)
     assert response.status_code == 400
-    data = json.loads(response.data)
-    assert data['success'] is False
-    assert "Missing required field" in data['error']
+    data = response.get_json()
+    assert data["success"] is False
+    assert "Missing required field" in data["error"]
+
+
+def test_update_book(client):
+    update_data = {"title": "Updated Title", "year": 2023}
+    response = client.put("/api/books/1", json=update_data) 
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["data"]["title"] == "Updated Title"
+    assert data["data"]["year"] == 2023
+
+    # Test updating a non-existent book
+    response = client.put("/api/books/999", json=update_data)  # Non-existent book
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["error"] == "Book not found"
+
+
+
+def test_delete_book(client):
+    response = client.delete("/api/books/1")  
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["message"] == "Book deleted successfully"
+
+
+    # Test deleting a non-existent book
+    response = client.delete("/api/books/999")  # Non-existent book
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["error"] == "Book not found"
+
+
+def test_not_found_error(client):
+    response = client.get("/nonexistent")
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["error"] == "Resource not found"
